@@ -103,9 +103,15 @@ onMounted(loadJobs)
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="200">
+        <el-table-column label="操作" width="300">
           <template #default="{ row }">
             <el-button size="small" @click="openEdit(row)">编辑</el-button>
+            <el-button
+              size="small"
+              @click="router.push({ name: 'scoring-standard', query: { job: row.id } })"
+            >
+              评分标准
+            </el-button>
             <el-button
               size="small"
               :type="row.is_active ? 'warning' : 'success'"

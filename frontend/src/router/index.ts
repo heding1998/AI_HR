@@ -21,6 +21,12 @@ const router = createRouter({
       component: () => import('../views/JobsView.vue'),
       meta: { requiresAuth: true },
     },
+    {
+      path: '/scoring-standard',
+      name: 'scoring-standard',
+      component: () => import('../views/ScoringStandardView.vue'),
+      meta: { requiresAuth: true },
+    },
   ],
 })
 

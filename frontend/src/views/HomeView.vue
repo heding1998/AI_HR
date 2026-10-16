@@ -16,6 +16,7 @@ function onLogout() {
       <h1>AI HR 智能招聘平台</h1>
       <div class="actions">
         <el-button @click="router.push({ name: 'jobs' })">岗位管理</el-button>
+        <el-button @click="router.push({ name: 'scoring-standard' })">评分标准配置</el-button>
         <el-button @click="onLogout">退出登录</el-button>
       </div>
     </header>

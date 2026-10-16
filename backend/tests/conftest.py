@@ -9,7 +9,7 @@ from app.config import settings
 from app.db import Base
 from app.deps import get_db
 from app.main import app
-from app.seed import ensure_default_admin, ensure_seed_jobs
+from app.seed import ensure_default_admin, ensure_seed_jobs, ensure_seed_scoring_standard
 
 TEST_DB_NAME = "aihr_test"
 
@@ -45,6 +45,7 @@ def _reset_and_seed(engine):
     try:
         ensure_default_admin(session)
         ensure_seed_jobs(session)
+        ensure_seed_scoring_standard(session)
     finally:
         session.close()
 
