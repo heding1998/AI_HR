@@ -9,7 +9,7 @@ from app.config import settings
 from app.db import Base
 from app.deps import get_db
 from app.main import app
-from app.seed import ensure_default_admin
+from app.seed import ensure_default_admin, ensure_seed_jobs
 
 TEST_DB_NAME = "aihr_test"
 
@@ -37,26 +37,26 @@ def engine():
     test_engine.dispose()
 
 
-@pytest.fixture(scope="session")
-def seed_admin(engine):
+def _reset_and_seed(engine):
+    table_names = ", ".join(t.name for t in Base.metadata.sorted_tables)
+    with engine.begin() as conn:
+        conn.execute(text(f"TRUNCATE {table_names} RESTART IDENTITY CASCADE"))
     session = sessionmaker(bind=engine)()
     try:
         ensure_default_admin(session)
+        ensure_seed_jobs(session)
     finally:
         session.close()
 
 
 @pytest.fixture()
-def db_session(engine, seed_admin):
-    connection = engine.connect()
-    transaction = connection.begin()
-    session = sessionmaker(bind=connection, autoflush=False, autocommit=False)()
+def db_session(engine):
+    _reset_and_seed(engine)
+    session = sessionmaker(bind=engine, autoflush=False, autocommit=False)()
     try:
         yield session
     finally:
         session.close()
-        transaction.rollback()
-        connection.close()
 
 
 @pytest.fixture()
@@ -70,3 +70,13 @@ def client(db_session):
             yield c
     finally:
         app.dependency_overrides.clear()
+
+
+@pytest.fixture()
+def auth_headers(client):
+    resp = client.post(
+        "/api/auth/login",
+        json={"username": settings.admin_username, "password": settings.admin_password},
+    )
+    token = resp.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}

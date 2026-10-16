@@ -14,9 +14,12 @@ function onLogout() {
   <div class="home">
     <header class="bar">
       <h1>AI HR 智能招聘平台</h1>
-      <el-button @click="onLogout">退出登录</el-button>
+      <div class="actions">
+        <el-button @click="router.push({ name: 'jobs' })">岗位管理</el-button>
+        <el-button @click="onLogout">退出登录</el-button>
+      </div>
     </header>
-    <p>已登录，功能建设中</p>
+    <p>欢迎使用 AI HR 智能招聘平台</p>
   </div>
 </template>
 
@@ -30,5 +33,10 @@ function onLogout() {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 16px;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
 }
 </style>

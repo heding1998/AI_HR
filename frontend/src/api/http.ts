@@ -1,0 +1,25 @@
+import { clearToken, getToken } from './auth'
+
+export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const token = getToken()
+  const headers = new Headers(options.headers)
+  if (!headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json')
+  }
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`)
+  }
+
+  const resp = await fetch(path, { ...options, headers })
+
+  if (resp.status === 401) {
+    clearToken()
+    window.location.href = '/login'
+    throw new Error('登录已过期，请重新登录')
+  }
+  if (!resp.ok) {
+    const data = (await resp.json().catch(() => null)) as { detail?: string } | null
+    throw new Error(data?.detail ?? '请求失败')
+  }
+  return resp.json() as Promise<T>
+}
