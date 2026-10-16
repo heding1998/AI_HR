@@ -4,7 +4,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker
 
-import app.models  # noqa: F401  注册模型到 Base.metadata
+from app import models  # noqa: F401  注册模型到 Base.metadata
 from app.config import settings
 from app.db import Base
 from app.deps import get_db, get_storage

@@ -1,6 +1,6 @@
 from app.batch_service import process_batch
 from app.routers import batches
-from tests.fakes import make_pdf, make_zip
+from tests.fakes import FakeLLMClient, make_pdf, make_zip
 
 
 class _SyncTask:
@@ -68,7 +68,7 @@ def test_get_batch_detail_with_resumes(client, auth_headers, db_session, storage
     monkeypatch.setattr(
         batches,
         "process_batch_task",
-        _SyncTask(lambda bid: process_batch(db_session, storage, bid)),
+        _SyncTask(lambda bid: process_batch(db_session, storage, FakeLLMClient(), bid)),
     )
     job_id = _demo_job_id(client, auth_headers)
     batch_id = _upload(

@@ -1,8 +1,9 @@
 from sqlalchemy import select
 
 from app.batch_service import process_batch
+from app.llm import LLMNotConfiguredError
 from app.models import Job, Resume, UploadBatch
-from tests.fakes import FakeStorage, make_pdf, make_zip
+from tests.fakes import FakeLLMClient, FakeStorage, make_pdf, make_zip
 
 
 class _FailingResumeStorage(FakeStorage):
@@ -37,11 +38,12 @@ def test_process_batch_creates_resumes(db_session):
     zipped = make_zip({"a.pdf": make_pdf("Hello Alpha"), "b.pdf": make_pdf("Hello Beta")})
     batch = _make_batch(db_session, job_id, storage, zipped)
 
-    process_batch(db_session, storage, batch.id)
+    process_batch(db_session, storage, FakeLLMClient(), batch.id)
 
     resumes = _resumes(db_session, batch.id)
     assert len(resumes) == 2
-    assert all(r.status == "parsed" for r in resumes)
+    assert all(r.status == "extracted" for r in resumes)
+    assert all(r.extracted_content is not None for r in resumes)
     assert {r.original_filename for r in resumes} == {"a.pdf", "b.pdf"}
 
     texts = {r.original_filename: r.extracted_text for r in resumes}
@@ -60,7 +62,7 @@ def test_process_batch_invalid_zip_marks_failed(db_session):
     job_id = _demo_job_id(db_session)
     batch = _make_batch(db_session, job_id, storage, b"not a zip at all")
 
-    process_batch(db_session, storage, batch.id)
+    process_batch(db_session, storage, FakeLLMClient(), batch.id)
 
     db_session.refresh(batch)
     assert batch.status == "failed"
@@ -72,7 +74,7 @@ def test_process_batch_no_pdfs_marks_failed(db_session):
     job_id = _demo_job_id(db_session)
     batch = _make_batch(db_session, job_id, storage, make_zip({"note.txt": b"hello"}))
 
-    process_batch(db_session, storage, batch.id)
+    process_batch(db_session, storage, FakeLLMClient(), batch.id)
 
     db_session.refresh(batch)
     assert batch.status == "failed"
@@ -85,7 +87,7 @@ def test_process_batch_skips_non_pdf(db_session):
     zipped = make_zip({"a.pdf": make_pdf("Hello Alpha"), "note.txt": b"hello"})
     batch = _make_batch(db_session, job_id, storage, zipped)
 
-    process_batch(db_session, storage, batch.id)
+    process_batch(db_session, storage, FakeLLMClient(), batch.id)
 
     resumes = _resumes(db_session, batch.id)
     assert len(resumes) == 1
@@ -110,10 +112,10 @@ def test_process_batch_parse_error_marks_resume_failed(db_session, monkeypatch):
 
     monkeypatch.setattr("app.batch_service.extract_pdf_text", boom)
 
-    process_batch(db_session, storage, batch.id)
+    process_batch(db_session, storage, FakeLLMClient(), batch.id)
 
     statuses = {r.original_filename: r.status for r in _resumes(db_session, batch.id)}
-    assert statuses == {"a.pdf": "parsed", "b.pdf": "failed"}
+    assert statuses == {"a.pdf": "extracted", "b.pdf": "failed"}
     db_session.refresh(batch)
     assert batch.status == "done"
     assert batch.processed_count == 2
@@ -124,7 +126,7 @@ def test_process_batch_storage_failure_marks_batch_failed(db_session):
     job_id = _demo_job_id(db_session)
     batch = _make_batch(db_session, job_id, storage, make_zip({"a.pdf": make_pdf("Hi")}))
 
-    process_batch(db_session, storage, batch.id)
+    process_batch(db_session, storage, FakeLLMClient(), batch.id)
 
     db_session.refresh(batch)
     assert batch.status == "failed"
@@ -137,7 +139,7 @@ def test_process_batch_truncates_long_filename(db_session):
     long_name = "x" * 300 + ".pdf"
     batch = _make_batch(db_session, job_id, storage, make_zip({long_name: make_pdf("Hi")}))
 
-    process_batch(db_session, storage, batch.id)
+    process_batch(db_session, storage, FakeLLMClient(), batch.id)
 
     resumes = _resumes(db_session, batch.id)
     assert len(resumes) == 1
@@ -152,11 +154,80 @@ def test_process_batch_oversized_entry_marks_resume_failed(db_session, monkeypat
     job_id = _demo_job_id(db_session)
     batch = _make_batch(db_session, job_id, storage, make_zip({"a.pdf": make_pdf("Hello")}))
 
-    process_batch(db_session, storage, batch.id)
+    process_batch(db_session, storage, FakeLLMClient(), batch.id)
 
     resumes = _resumes(db_session, batch.id)
     assert len(resumes) == 1
     assert resumes[0].status == "failed"
     assert "过大" in resumes[0].error
+    db_session.refresh(batch)
+    assert batch.status == "done"
+
+
+def test_process_batch_extraction_failure_marks_anomaly(db_session):
+    storage = FakeStorage()
+    job_id = _demo_job_id(db_session)
+    batch = _make_batch(db_session, job_id, storage, make_zip({"a.pdf": make_pdf("Hi")}))
+
+    process_batch(db_session, storage, FakeLLMClient(error=RuntimeError("LLM 超时")), batch.id)
+
+    resumes = _resumes(db_session, batch.id)
+    assert resumes[0].status == "anomaly"
+    assert "LLM 超时" in resumes[0].error
+    assert resumes[0].extracted_content is None
+    db_session.refresh(batch)
+    assert batch.status == "done"
+
+
+def test_process_batch_llm_unconfigured_marks_anomaly(db_session):
+    storage = FakeStorage()
+    job_id = _demo_job_id(db_session)
+    batch = _make_batch(db_session, job_id, storage, make_zip({"a.pdf": make_pdf("Hi")}))
+
+    process_batch(
+        db_session,
+        storage,
+        FakeLLMClient(error=LLMNotConfiguredError("未配置 DEEPSEEK_API_KEY")),
+        batch.id,
+    )
+
+    resumes = _resumes(db_session, batch.id)
+    assert resumes[0].status == "anomaly"
+    assert "DEEPSEEK_API_KEY" in resumes[0].error
+    db_session.refresh(batch)
+    assert batch.status == "done"
+
+
+def test_process_batch_empty_text_marks_anomaly(db_session):
+    storage = FakeStorage()
+    job_id = _demo_job_id(db_session)
+    batch = _make_batch(db_session, job_id, storage, make_zip({"scan.pdf": make_pdf("")}))
+
+    process_batch(
+        db_session,
+        storage,
+        FakeLLMClient(error=RuntimeError("不应调用 LLM")),
+        batch.id,
+    )
+
+    resumes = _resumes(db_session, batch.id)
+    assert resumes[0].status == "anomaly"
+    assert "文本" in resumes[0].error
+    assert resumes[0].extracted_content is None
+    db_session.refresh(batch)
+    assert batch.status == "done"
+
+
+def test_process_batch_idempotent_when_resumes_exist(db_session):
+    storage = FakeStorage()
+    job_id = _demo_job_id(db_session)
+    batch = _make_batch(db_session, job_id, storage, make_zip({"a.pdf": make_pdf("Hi")}))
+
+    process_batch(db_session, storage, FakeLLMClient(), batch.id)
+    process_batch(db_session, storage, FakeLLMClient(), batch.id)
+
+    resumes = _resumes(db_session, batch.id)
+    assert len(resumes) == 1
+    assert resumes[0].status == "extracted"
     db_session.refresh(batch)
     assert batch.status == "done"

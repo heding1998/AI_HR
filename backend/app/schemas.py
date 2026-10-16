@@ -96,6 +96,11 @@ class ResumeOut(BaseModel):
     status: str
     error: str | None
     created_at: datetime
+    extracted_content: dict | None = None
+
+
+class ResumeDetailOut(ResumeOut):
+    extracted_text: str
 
 
 class BatchDetailOut(BatchOut):

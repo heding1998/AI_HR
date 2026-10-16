@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from .config import settings
 from .db import SessionLocal
+from .llm import DeepSeekClient, LLMClient
 from .models import User
 from .security import decode_access_token
 from .storage import MinioStorage, ObjectStorage
@@ -35,6 +36,15 @@ def _build_minio_storage() -> MinioStorage:
 
 def get_storage() -> ObjectStorage:
     return _build_minio_storage()
+
+
+@lru_cache
+def _build_llm() -> DeepSeekClient:
+    return DeepSeekClient(api_key=settings.deepseek_api_key)
+
+
+def get_llm() -> LLMClient:
+    return _build_llm()
 
 
 def get_current_user(

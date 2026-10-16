@@ -18,6 +18,11 @@ export interface Resume {
   status: string
   error: string | null
   created_at: string
+  extracted_content: Record<string, unknown> | null
+}
+
+export interface ResumeDetail extends Resume {
+  extracted_text: string
 }
 
 export interface BatchDetail extends Batch {
@@ -30,6 +35,10 @@ export function listBatches(): Promise<Batch[]> {
 
 export function getBatch(id: number): Promise<BatchDetail> {
   return request<BatchDetail>(`/api/batches/${id}`)
+}
+
+export function getResume(id: number): Promise<ResumeDetail> {
+  return request<ResumeDetail>(`/api/resumes/${id}`)
 }
 
 export function uploadBatch(jobId: number, file: File): Promise<Batch> {

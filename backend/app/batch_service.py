@@ -1,10 +1,13 @@
-"""批次异步处理核心逻辑：解压 ZIP、逐份提取 PDF 文本、落库。"""
+"""批次异步处理核心逻辑：解压 ZIP、逐份提取 PDF 文本、AI 提取字段、落库。"""
 
 import io
 import zipfile
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .extraction import normalize_resume_fields
+from .llm import LLMClient
 from .models import Resume, UploadBatch
 from .parsing import extract_pdf_text
 from .storage import ObjectStorage
@@ -13,6 +16,11 @@ STATUS_PENDING = "pending"
 STATUS_PROCESSING = "processing"
 STATUS_DONE = "done"
 STATUS_FAILED = "failed"
+
+RESUME_STATUS_PARSED = "parsed"
+RESUME_STATUS_FAILED = "failed"
+RESUME_STATUS_EXTRACTED = "extracted"
+RESUME_STATUS_ANOMALY = "anomaly"
 
 MAX_ENTRY_SIZE = 20 * 1024 * 1024  # 单个 PDF 解压后最大 20MB
 MAX_TOTAL_SIZE = 200 * 1024 * 1024  # 单批解压后合计最大 200MB
@@ -30,9 +38,18 @@ def _basename(name: str) -> str:
     return normalized.rsplit("/", 1)[-1]
 
 
-def process_batch(session: Session, storage: ObjectStorage, batch_id: int) -> None:
+def process_batch(
+    session: Session, storage: ObjectStorage, llm: LLMClient, batch_id: int
+) -> None:
     batch = session.get(UploadBatch, batch_id)
     if batch is None:
+        return
+
+    # 幂等保护：批次已生成过简历时直接跳过，避免任务重投递导致重复。
+    already_processed = session.execute(
+        select(Resume.id).where(Resume.batch_id == batch_id).limit(1)
+    ).scalar_one_or_none()
+    if already_processed is not None:
         return
 
     batch.status = STATUS_PROCESSING
@@ -97,7 +114,7 @@ def process_batch(session: Session, storage: ObjectStorage, batch_id: int) -> No
                     original_filename=basename,
                     file_key=file_key,
                     extracted_text="",
-                    status="failed",
+                    status=RESUME_STATUS_FAILED,
                     error=_truncate(str(exc) or "解析失败"),
                 )
             else:
@@ -108,10 +125,34 @@ def process_batch(session: Session, storage: ObjectStorage, batch_id: int) -> No
                     original_filename=basename,
                     file_key=file_key,
                     extracted_text=text or "",
-                    status="parsed",
+                    status=RESUME_STATUS_PARSED,
                 )
             session.add(resume)
             batch.processed_count += 1
+            session.commit()
+
+        # 提取阶段：对已解析的简历调用 LLM，逐份容错。
+        resumes = session.execute(
+            select(Resume)
+            .where(Resume.batch_id == batch_id, Resume.status == RESUME_STATUS_PARSED)
+            .order_by(Resume.id)
+        ).scalars().all()
+        for resume in resumes:
+            if not resume.extracted_text.strip():
+                resume.status = RESUME_STATUS_ANOMALY
+                resume.error = "未提取到文本"
+                session.commit()
+                continue
+            try:
+                fields = normalize_resume_fields(
+                    llm.extract_resume_fields(resume.extracted_text)
+                )
+            except Exception as exc:
+                resume.status = RESUME_STATUS_ANOMALY
+                resume.error = _truncate(str(exc) or "提取失败")
+            else:
+                resume.extracted_content = fields
+                resume.status = RESUME_STATUS_EXTRACTED
             session.commit()
     except Exception as exc:
         session.rollback()

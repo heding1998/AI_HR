@@ -17,22 +17,37 @@ class FakeStorage:
         return self._data[key]
 
 
+class FakeLLMClient:
+    """假 LLM：返回固定字段，或抛出指定异常。"""
+
+    def __init__(
+        self, result: dict | None = None, error: Exception | None = None
+    ) -> None:
+        if result is None:
+            result = {"name": "张三", "contact": "13800000000"}
+        self._result = result
+        self._error = error
+
+    def extract_resume_fields(self, text: str) -> dict:
+        if self._error is not None:
+            raise self._error
+        return dict(self._result)
+
+
 def make_pdf(text: str) -> bytes:
     """构造一个含指定文本的最小合法单页 PDF。"""
-    objects = [
-        b"<< /Type /Catalog /Pages 2 0 R >>",
-        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-        (
-            b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R "
-            b"/Resources << /Font << /F1 5 0 R >> >> >>"
-        ),
-        None,
-        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
-    ]
+    catalog = b"<< /Type /Catalog /Pages 2 0 R >>"
+    pages = b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>"
+    page = (
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R "
+        b"/Resources << /Font << /F1 5 0 R >> >> >>"
+    )
+    font = b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"
     content = ("BT /F1 24 Tf 100 700 Td (" + text + ") Tj ET").encode()
-    objects[3] = (
+    stream = (
         b"<< /Length " + str(len(content)).encode() + b" >>\nstream\n" + content + b"\nendstream"
     )
+    objects = [catalog, pages, page, stream, font]
 
     out = bytearray(b"%PDF-1.4\n")
     offsets: list[int] = []

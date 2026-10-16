@@ -25,10 +25,10 @@ celery_app.conf.update(
 def process_batch_task(batch_id: int) -> None:
     from .batch_service import process_batch
     from .db import SessionLocal
-    from .deps import get_storage
+    from .deps import get_llm, get_storage
 
     session = SessionLocal()
     try:
-        process_batch(session, get_storage(), batch_id)
+        process_batch(session, get_storage(), get_llm(), batch_id)
     finally:
         session.close()

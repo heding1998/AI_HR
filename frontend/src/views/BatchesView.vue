@@ -6,10 +6,12 @@ import { clearToken } from '../api/auth'
 import { listJobs, type Job } from '../api/jobs'
 import {
   getBatch,
+  getResume,
   listBatches,
   uploadBatch,
   type Batch,
   type Resume,
+  type ResumeDetail,
 } from '../api/batches'
 
 const router = useRouter()
@@ -25,6 +27,10 @@ const uploading = ref(false)
 const dialogVisible = ref(false)
 const resumes = ref<Resume[]>([])
 
+const resumeDetailVisible = ref(false)
+const resumeDetailLoading = ref(false)
+const resumeDetail = ref<ResumeDetail | null>(null)
+
 let timer: number | undefined
 
 const statusMap: Record<string, { label: string; type: string }> = {
@@ -34,8 +40,57 @@ const statusMap: Record<string, { label: string; type: string }> = {
   failed: { label: '失败', type: 'danger' },
 }
 
+const resumeStatusMap: Record<string, { label: string; type: string }> = {
+  parsed: { label: '已解析', type: 'info' },
+  extracted: { label: '已提取', type: 'success' },
+  failed: { label: '失败', type: 'danger' },
+  anomaly: { label: '异常', type: 'warning' },
+}
+
+const FIELD_LABELS: Record<string, string> = {
+  name: '姓名',
+  gender: '性别',
+  age: '年龄',
+  highest_education: '最高学历',
+  contact: '联系方式',
+  work_years: '工作年限',
+  job_intention: '求职意向',
+  expected_salary: '期望薪资',
+  expected_city: '期望城市',
+  skills: '个人技能',
+  work_experience: '工作经验',
+  project_experience: '项目经验',
+  self_evaluation: '自我评价',
+}
+
+const FIELD_ORDER = [
+  'name',
+  'gender',
+  'age',
+  'highest_education',
+  'contact',
+  'work_years',
+  'job_intention',
+  'expected_salary',
+  'expected_city',
+  'skills',
+  'work_experience',
+  'project_experience',
+  'self_evaluation',
+]
+
 function jobName(id: number) {
   return jobs.value.find((j) => j.id === id)?.name ?? `岗位 #${id}`
+}
+
+function fieldValue(key: string): string {
+  const content = resumeDetail.value?.extracted_content
+  if (!content) return '—'
+  const value = content[key]
+  if (value === null || value === undefined || value === '') return '—'
+  if (Array.isArray(value)) return value.map(String).join('、')
+  if (typeof value === 'object') return JSON.stringify(value)
+  return String(value)
 }
 
 async function loadJobs() {
@@ -91,6 +146,18 @@ async function openDetail(batch: Batch) {
     dialogVisible.value = true
   } catch (err) {
     ElMessage.error(err instanceof Error ? err.message : '加载失败')
+  }
+}
+
+async function openResumeDetail(resume: Resume) {
+  resumeDetailLoading.value = true
+  try {
+    resumeDetail.value = await getResume(resume.id)
+    resumeDetailVisible.value = true
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '加载失败')
+  } finally {
+    resumeDetailLoading.value = false
   }
 }
 
@@ -174,18 +241,46 @@ onUnmounted(() => {
       </el-table>
     </el-card>
 
-    <el-dialog v-model="dialogVisible" title="简历列表" width="720px">
+    <el-dialog v-model="dialogVisible" title="简历列表" width="760px">
       <el-table :data="resumes">
         <el-table-column prop="original_filename" label="文件名" />
         <el-table-column label="状态" width="110">
           <template #default="{ row }">
-            <el-tag :type="row.status === 'parsed' ? 'success' : 'danger'">
-              {{ row.status === 'parsed' ? '已解析' : '失败' }}
+            <el-tag :type="resumeStatusMap[row.status]?.type ?? 'info'">
+              {{ resumeStatusMap[row.status]?.label ?? row.status }}
             </el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="error" label="错误" show-overflow-tooltip />
+        <el-table-column label="操作" width="90">
+          <template #default="{ row }">
+            <el-button size="small" @click="openResumeDetail(row)">详情</el-button>
+          </template>
+        </el-table-column>
       </el-table>
+    </el-dialog>
+
+    <el-dialog
+      v-model="resumeDetailVisible"
+      :title="resumeDetail?.original_filename ?? '简历详情'"
+      width="720px"
+    >
+      <div v-loading="resumeDetailLoading">
+        <el-descriptions v-if="resumeDetail" :column="2" border>
+          <el-descriptions-item
+            v-for="key in FIELD_ORDER"
+            :key="key"
+            :label="FIELD_LABELS[key]"
+          >
+            {{ fieldValue(key) }}
+          </el-descriptions-item>
+        </el-descriptions>
+
+        <template v-if="resumeDetail?.extracted_text">
+          <h4 class="raw-title">原文</h4>
+          <pre class="raw-text">{{ resumeDetail.extracted_text }}</pre>
+        </template>
+      </div>
     </el-dialog>
   </div>
 </template>
@@ -217,5 +312,19 @@ onUnmounted(() => {
 .file-name {
   color: #606266;
   font-size: 14px;
+}
+
+.raw-title {
+  margin: 16px 0 8px;
+}
+
+.raw-text {
+  max-height: 300px;
+  overflow: auto;
+  padding: 12px;
+  background: #f5f7fa;
+  border-radius: 4px;
+  white-space: pre-wrap;
+  font-size: 13px;
 }
 </style>
