@@ -97,6 +97,8 @@ class ResumeOut(BaseModel):
     error: str | None
     created_at: datetime
     extracted_content: dict | None = None
+    score: float | None = None
+    score_error: str | None = None
 
 
 class ResumeDetailOut(ResumeOut):

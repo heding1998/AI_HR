@@ -96,6 +96,16 @@ def test_put_a_table_inconsistent_category_score_returns_400(client, auth_header
     assert resp.status_code == 400
 
 
+def test_put_a_table_duplicate_subcategory_returns_400(client, auth_headers):
+    job = _create_job(client, auth_headers)
+    rows = [
+        {"category": "A", "subcategory": "X", "category_score": 5, "subcategory_score": 5},
+        {"category": "B", "subcategory": "X", "category_score": 5, "subcategory_score": 5},
+    ]
+    resp = client.put(f"/api/jobs/{job['id']}/scoring-standard/a", json=rows, headers=auth_headers)
+    assert resp.status_code == 400
+
+
 def test_put_a_table_out_of_range_score_returns_400(client, auth_headers):
     job = _create_job(client, auth_headers)
     rows = [

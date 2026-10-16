@@ -231,3 +231,53 @@ def test_process_batch_idempotent_when_resumes_exist(db_session):
     assert resumes[0].status == "extracted"
     db_session.refresh(batch)
     assert batch.status == "done"
+
+
+def test_process_batch_scores_resume(db_session):
+    storage = FakeStorage()
+    job_id = _demo_job_id(db_session)
+    batch = _make_batch(db_session, job_id, storage, make_zip({"a.pdf": make_pdf("Hi")}))
+
+    process_batch(db_session, storage, FakeLLMClient(), batch.id)
+
+    resume = _resumes(db_session, batch.id)[0]
+    assert resume.status == "extracted"
+    assert resume.score == 10.0
+    assert resume.score_error is None
+
+
+def test_process_batch_scoring_failure_keeps_batch_done(db_session):
+    storage = FakeStorage()
+    job_id = _demo_job_id(db_session)
+    batch = _make_batch(db_session, job_id, storage, make_zip({"a.pdf": make_pdf("Hi")}))
+
+    process_batch(
+        db_session,
+        storage,
+        FakeLLMClient(score_error=RuntimeError("评分超时")),
+        batch.id,
+    )
+
+    resume = _resumes(db_session, batch.id)[0]
+    assert resume.status == "extracted"
+    assert resume.score is None
+    assert "评分超时" in resume.score_error
+    db_session.refresh(batch)
+    assert batch.status == "done"
+
+
+def test_process_batch_no_standard_sets_score_error(db_session):
+    storage = FakeStorage()
+    job = Job(code="NO-STD-1", name="无标准岗位", location="厦门")
+    db_session.add(job)
+    db_session.commit()
+    db_session.refresh(job)
+    batch = _make_batch(db_session, job.id, storage, make_zip({"a.pdf": make_pdf("Hi")}))
+
+    process_batch(db_session, storage, FakeLLMClient(), batch.id)
+
+    resume = _resumes(db_session, batch.id)[0]
+    assert resume.score is None
+    assert resume.score_error == "岗位未配置评分标准"
+    db_session.refresh(batch)
+    assert batch.status == "done"

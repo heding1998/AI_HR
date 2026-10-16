@@ -2,14 +2,17 @@
 
 import io
 import zipfile
+from collections.abc import Sequence
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .extraction import normalize_resume_fields
 from .llm import LLMClient
-from .models import Resume, UploadBatch
+from .models import Resume, ScoringStandardA, ScoringStandardB, UploadBatch
 from .parsing import extract_pdf_text
+from .schemas import ScoringStandardAIn, ScoringStandardBIn
+from .scoring import compute_resume_score
 from .storage import ObjectStorage
 
 STATUS_PENDING = "pending"
@@ -36,6 +39,59 @@ def _basename(name: str) -> str:
     """取 ZIP 条目名最后一个路径段，归一化 Windows/Unix 分隔符。"""
     normalized = name.replace("\\", "/")
     return normalized.rsplit("/", 1)[-1]
+
+
+def load_scoring_standard(
+    session: Session, job_id: int
+) -> tuple[list[ScoringStandardAIn], list[ScoringStandardBIn]]:
+    """按岗位一次性加载 A/B 评分标准，转为 schema 供评分计算使用。"""
+    a_orm = session.execute(
+        select(ScoringStandardA).where(ScoringStandardA.job_id == job_id)
+    ).scalars().all()
+    b_orm = session.execute(
+        select(ScoringStandardB).where(ScoringStandardB.job_id == job_id)
+    ).scalars().all()
+    a_rows = [
+        ScoringStandardAIn(
+            category=r.category,
+            subcategory=r.subcategory,
+            category_score=r.category_score,
+            subcategory_score=r.subcategory_score,
+        )
+        for r in a_orm
+    ]
+    b_rows = [
+        ScoringStandardBIn(
+            category=r.category,
+            subcategory=r.subcategory,
+            level1_indicator=r.level1_indicator,
+            level2_indicator=r.level2_indicator,
+            weight=r.weight,
+        )
+        for r in b_orm
+    ]
+    return a_rows, b_rows
+
+
+def score_resume_record(
+    llm: LLMClient,
+    resume: Resume,
+    a_rows: Sequence[ScoringStandardAIn],
+    b_rows: Sequence[ScoringStandardBIn],
+) -> None:
+    """按已加载的评分标准为简历打分，写入 score/score_error（不提交）。"""
+    if not a_rows:
+        resume.score = None
+        resume.score_error = "岗位未配置评分标准"
+        return
+
+    try:
+        weights = llm.score_resume(resume.extracted_content or {}, a_rows, b_rows)
+        resume.score = compute_resume_score(a_rows, weights)
+        resume.score_error = None
+    except Exception as exc:
+        resume.score = None
+        resume.score_error = _truncate(str(exc) or "评分失败")
 
 
 def process_batch(
@@ -153,6 +209,17 @@ def process_batch(
             else:
                 resume.extracted_content = fields
                 resume.status = RESUME_STATUS_EXTRACTED
+            session.commit()
+
+        # 评分阶段：对已提取的简历按岗位评分标准打分，逐份容错。
+        a_rows, b_rows = load_scoring_standard(session, batch.job_id)
+        scored_resumes = session.execute(
+            select(Resume)
+            .where(Resume.batch_id == batch_id, Resume.status == RESUME_STATUS_EXTRACTED)
+            .order_by(Resume.id)
+        ).scalars().all()
+        for resume in scored_resumes:
+            score_resume_record(llm, resume, a_rows, b_rows)
             session.commit()
     except Exception as exc:
         session.rollback()

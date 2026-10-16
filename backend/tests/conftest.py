@@ -7,7 +7,7 @@ from sqlalchemy.orm import sessionmaker
 from app import models  # noqa: F401  注册模型到 Base.metadata
 from app.config import settings
 from app.db import Base
-from app.deps import get_db, get_storage
+from app.deps import get_db, get_llm, get_storage
 from app.main import app
 from app.seed import ensure_default_admin, ensure_seed_jobs, ensure_seed_scoring_standard
 
@@ -75,8 +75,14 @@ def client(db_session, storage):
     def override_get_storage():
         return storage
 
+    def override_get_llm():
+        from tests.fakes import FakeLLMClient
+
+        return FakeLLMClient()
+
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_storage] = override_get_storage
+    app.dependency_overrides[get_llm] = override_get_llm
     try:
         with TestClient(app) as c:
             yield c

@@ -108,6 +108,8 @@ class Resume(Base):
     extracted_content: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     status: Mapped[str] = mapped_column(String(32), default="parsed")
     error: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    score_error: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

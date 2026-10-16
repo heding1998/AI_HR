@@ -19,6 +19,8 @@ export interface Resume {
   error: string | null
   created_at: string
   extracted_content: Record<string, unknown> | null
+  score: number | null
+  score_error: string | null
 }
 
 export interface ResumeDetail extends Resume {
@@ -39,6 +41,10 @@ export function getBatch(id: number): Promise<BatchDetail> {
 
 export function getResume(id: number): Promise<ResumeDetail> {
   return request<ResumeDetail>(`/api/resumes/${id}`)
+}
+
+export function rescoreResume(id: number): Promise<ResumeDetail> {
+  return request<ResumeDetail>(`/api/resumes/${id}/rescore`, { method: 'POST' })
 }
 
 export function uploadBatch(jobId: number, file: File): Promise<Batch> {

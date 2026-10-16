@@ -8,6 +8,7 @@ import {
   getBatch,
   getResume,
   listBatches,
+  rescoreResume,
   uploadBatch,
   type Batch,
   type Resume,
@@ -30,6 +31,7 @@ const resumes = ref<Resume[]>([])
 const resumeDetailVisible = ref(false)
 const resumeDetailLoading = ref(false)
 const resumeDetail = ref<ResumeDetail | null>(null)
+const rescoring = ref(false)
 
 let timer: number | undefined
 
@@ -161,6 +163,24 @@ async function openResumeDetail(resume: Resume) {
   }
 }
 
+async function onRescore(resume: ResumeDetail) {
+  rescoring.value = true
+  try {
+    const updated = await rescoreResume(resume.id)
+    resumeDetail.value = updated
+    const row = resumes.value.find((r) => r.id === updated.id)
+    if (row) {
+      row.score = updated.score
+      row.score_error = updated.score_error
+    }
+    ElMessage.success('评分完成')
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '评分失败')
+  } finally {
+    rescoring.value = false
+  }
+}
+
 function onLogout() {
   clearToken()
   router.push({ name: 'login' })
@@ -251,6 +271,12 @@ onUnmounted(() => {
             </el-tag>
           </template>
         </el-table-column>
+        <el-table-column label="分数" width="90">
+          <template #default="{ row }">
+            <span v-if="row.score !== null && row.score !== undefined">{{ row.score }}</span>
+            <el-tag v-else type="warning" size="small">未评分</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="error" label="错误" show-overflow-tooltip />
         <el-table-column label="操作" width="90">
           <template #default="{ row }">
@@ -266,6 +292,25 @@ onUnmounted(() => {
       width="720px"
     >
       <div v-loading="resumeDetailLoading">
+        <div v-if="resumeDetail" class="score-bar">
+          <span class="score-label">评分</span>
+          <span v-if="resumeDetail.score !== null" class="score-value">
+            {{ resumeDetail.score }}
+          </span>
+          <el-tag v-else type="warning" size="small">未评分</el-tag>
+          <span v-if="resumeDetail.score_error" class="score-error">
+            {{ resumeDetail.score_error }}
+          </span>
+          <el-button
+            size="small"
+            type="primary"
+            :loading="rescoring"
+            @click="onRescore(resumeDetail)"
+          >
+            重新评分
+          </el-button>
+        </div>
+
         <el-descriptions v-if="resumeDetail" :column="2" border>
           <el-descriptions-item
             v-for="key in FIELD_ORDER"
@@ -316,6 +361,29 @@ onUnmounted(() => {
 
 .raw-title {
   margin: 16px 0 8px;
+}
+
+.score-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.score-label {
+  color: #606266;
+  font-size: 14px;
+}
+
+.score-value {
+  font-size: 20px;
+  font-weight: 600;
+  color: #409eff;
+}
+
+.score-error {
+  color: #f56c6c;
+  font-size: 13px;
 }
 
 .raw-text {

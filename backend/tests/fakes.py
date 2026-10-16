@@ -18,20 +18,33 @@ class FakeStorage:
 
 
 class FakeLLMClient:
-    """假 LLM：返回固定字段，或抛出指定异常。"""
+    """假 LLM：返回固定字段/权重，或抛出指定异常。"""
 
     def __init__(
-        self, result: dict | None = None, error: Exception | None = None
+        self,
+        result: dict | None = None,
+        error: Exception | None = None,
+        match_weights: dict[str, float] | None = None,
+        score_error: Exception | None = None,
     ) -> None:
         if result is None:
             result = {"name": "张三", "contact": "13800000000"}
+        if match_weights is None:
+            match_weights = {"学历": 10.0, "工作经验": 10.0, "项目经验": 10.0, "个人技能": 10.0}
         self._result = result
         self._error = error
+        self._match_weights = match_weights
+        self._score_error = score_error
 
     def extract_resume_fields(self, text: str) -> dict:
         if self._error is not None:
             raise self._error
         return dict(self._result)
+
+    def score_resume(self, resume_content: dict, a_rows, b_rows) -> dict[str, float]:
+        if self._score_error is not None:
+            raise self._score_error
+        return dict(self._match_weights)
 
 
 def make_pdf(text: str) -> bytes:

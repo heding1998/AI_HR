@@ -1,5 +1,9 @@
 """评分标准相关的纯逻辑：A表/B表配置校验，以及（T07 起）评分计算。"""
 
+import math
+from collections.abc import Mapping, Sequence
+from typing import Any
+
 from .schemas import ScoringStandardAIn, ScoringStandardBIn
 
 TOTAL_SCORE = 10.0
@@ -18,7 +22,12 @@ def validate_a_table(rows: list[ScoringStandardAIn]) -> str | None:
     """
     category_scores: dict[str, float] = {}
     subcategory_sums: dict[str, float] = {}
+    seen_subcategories: set[str] = set()
     for row in rows:
+        if row.subcategory in seen_subcategories:
+            return f"小类「{row.subcategory}」重复，岗位内小类名须唯一"
+        seen_subcategories.add(row.subcategory)
+
         if not (0 <= row.category_score <= TOTAL_SCORE):
             return f"大类分数须在 0~{TOTAL_SCORE} 之间，当前为 {row.category_score}"
         if not (0 <= row.subcategory_score <= TOTAL_SCORE):
@@ -55,3 +64,69 @@ def validate_b_table(rows: list[ScoringStandardBIn]) -> str | None:
         if not (MIN_WEIGHT <= row.weight <= MAX_WEIGHT):
             return f"权重需在 {MIN_WEIGHT}~{MAX_WEIGHT} 之间，当前为 {row.weight}"
     return None
+
+
+def compute_resume_score(
+    a_rows: Sequence[ScoringStandardAIn],
+    match_weights: Mapping[str, float],
+) -> float:
+    """由 A 表与各小类匹配权重计算 0~10 总分。
+
+    小类得分 = 匹配权重 / 最高权重(10) × 小类分数；
+    大类得分 = 该大类下各小类得分之和；
+    总分 = 各大类得分之和（上限 10）。
+    """
+    category_sums: dict[str, float] = {}
+    for row in a_rows:
+        weight = match_weights.get(row.subcategory, 0.0)
+        sub_score = (weight / MAX_WEIGHT) * row.subcategory_score
+        category_sums[row.category] = category_sums.get(row.category, 0.0) + sub_score
+    total = sum(category_sums.values())
+    return round(min(total, TOTAL_SCORE), 2)
+
+
+def normalize_match_weights(raw: Mapping[str, Any]) -> dict[str, float]:
+    """把 LLM 返回的匹配权重规整为 {小类名: 0~10 的 float}，丢弃非法/非有限值。"""
+    weights: dict[str, float] = {}
+    for key, value in raw.items():
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            continue
+        if not math.isfinite(number):
+            continue
+        weights[str(key)] = min(max(number, 0.0), MAX_WEIGHT)
+    return weights
+
+
+def build_scoring_prompt(
+    a_rows: Sequence[ScoringStandardAIn],
+    b_rows: Sequence[ScoringStandardBIn],
+) -> str:
+    """根据 A/B 表构建评分提示词（简历内容由调用方作为用户消息传入）。"""
+    a_lines = "\n".join(
+        f"- {row.subcategory}：满分 {row.subcategory_score}" for row in a_rows
+    )
+
+    by_subcategory: dict[str, list[ScoringStandardBIn]] = {}
+    for row in b_rows:
+        by_subcategory.setdefault(row.subcategory, []).append(row)
+    b_parts = []
+    for sub, rows in by_subcategory.items():
+        first = rows[0]
+        options = "；".join(f"{r.level2_indicator}（权重 {r.weight}）" for r in rows)
+        b_parts.append(f"- {first.category} / {sub}（{first.level1_indicator}）：{options}")
+    b_lines = "\n".join(b_parts)
+
+    return f"""\
+你是一名专业的 HR 简历评分助手。请依据评分标准，对简历内容与各小类指标进行匹配打分。
+
+评分标准（A 表：小类及其满分）：
+{a_lines}
+
+评分标准（B 表：各小类的匹配指标及权重）：
+{b_lines}
+
+请对每个小类，选择最匹配简历内容的一项指标，返回其权重（0~10 的数字）。\
+只输出一个 JSON 对象，键为小类名，值为匹配权重；无法判断时权重为 0。"""
+
