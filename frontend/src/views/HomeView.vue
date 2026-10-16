@@ -18,6 +18,8 @@ function onLogout() {
         <el-button @click="router.push({ name: 'jobs' })">岗位管理</el-button>
         <el-button @click="router.push({ name: 'scoring-standard' })">评分标准配置</el-button>
         <el-button @click="router.push({ name: 'batches' })">简历上传</el-button>
+        <el-button @click="router.push({ name: 'applications' })">评分结果</el-button>
+        <el-button @click="router.push({ name: 'talent-pool' })">高分人才库</el-button>
         <el-button @click="onLogout">退出登录</el-button>
       </div>
     </header>

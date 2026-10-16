@@ -8,6 +8,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
     func,
     true,
 )
@@ -110,6 +111,48 @@ class Resume(Base):
     error: Mapped[str | None] = mapped_column(String(255), nullable=True)
     score: Mapped[float | None] = mapped_column(Float, nullable=True)
     score_error: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class Application(Base):
+    """应聘记录：简历评分后生成的初筛结果。"""
+
+    __tablename__ = "applications"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    job_id: Mapped[int] = mapped_column(
+        ForeignKey("jobs.id", ondelete="CASCADE"), index=True
+    )
+    resume_id: Mapped[int] = mapped_column(
+        ForeignKey("resumes.id", ondelete="CASCADE"), unique=True, index=True
+    )
+    candidate_name: Mapped[str] = mapped_column(String(128), default="")
+    candidate_contact: Mapped[str] = mapped_column(String(128), default="")
+    score: Mapped[float] = mapped_column(Float)
+    status: Mapped[str] = mapped_column(String(32))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class TalentPool(Base):
+    """高分人才库：按姓名 + 联系方式去重，保留最高分与分级。"""
+
+    __tablename__ = "talent_pool"
+    __table_args__ = (
+        UniqueConstraint("name", "contact", name="uq_talent_pool_name_contact"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(128), index=True)
+    contact: Mapped[str] = mapped_column(String(128), default="", index=True)
+    score: Mapped[float] = mapped_column(Float)
+    tier: Mapped[str] = mapped_column(String(32))
+    resume_id: Mapped[int | None] = mapped_column(
+        ForeignKey("resumes.id", ondelete="SET NULL"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

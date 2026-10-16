@@ -107,3 +107,28 @@ class ResumeDetailOut(ResumeOut):
 
 class BatchDetailOut(BatchOut):
     resumes: list[ResumeOut]
+
+
+class ApplicationOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    job_id: int
+    resume_id: int
+    candidate_name: str
+    candidate_contact: str
+    score: float
+    status: str
+    created_at: datetime
+
+
+class TalentPoolOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    contact: str
+    score: float
+    tier: str
+    resume_id: int | None
+    created_at: datetime

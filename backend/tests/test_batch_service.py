@@ -1,8 +1,8 @@
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from app.batch_service import process_batch
 from app.llm import LLMNotConfiguredError
-from app.models import Job, Resume, UploadBatch
+from app.models import Application, Job, Resume, TalentPool, UploadBatch
 from tests.fakes import FakeLLMClient, FakeStorage, make_pdf, make_zip
 
 
@@ -229,6 +229,26 @@ def test_process_batch_idempotent_when_resumes_exist(db_session):
     resumes = _resumes(db_session, batch.id)
     assert len(resumes) == 1
     assert resumes[0].status == "extracted"
+    assert len(db_session.execute(select(Application)).scalars().all()) == 1
+    db_session.refresh(batch)
+    assert batch.status == "done"
+
+
+def test_process_batch_redelivery_regenerates_derived_data(db_session):
+    """简历已建但派生数据缺失时（评分后崩溃），重投递应补跑应聘记录与人才库。"""
+    storage = FakeStorage()
+    job_id = _demo_job_id(db_session)
+    batch = _make_batch(db_session, job_id, storage, make_zip({"a.pdf": make_pdf("Hi")}))
+
+    process_batch(db_session, storage, FakeLLMClient(), batch.id)
+    db_session.execute(delete(Application))
+    db_session.execute(delete(TalentPool))
+    db_session.commit()
+
+    process_batch(db_session, storage, FakeLLMClient(), batch.id)
+
+    assert len(db_session.execute(select(Application)).scalars().all()) == 1
+    assert len(db_session.execute(select(TalentPool)).scalars().all()) == 1
     db_session.refresh(batch)
     assert batch.status == "done"
 
@@ -281,3 +301,38 @@ def test_process_batch_no_standard_sets_score_error(db_session):
     assert resume.score_error == "岗位未配置评分标准"
     db_session.refresh(batch)
     assert batch.status == "done"
+
+
+def test_process_batch_generates_application_and_pool(db_session):
+    storage = FakeStorage()
+    job_id = _demo_job_id(db_session)
+    batch = _make_batch(db_session, job_id, storage, make_zip({"a.pdf": make_pdf("Hi")}))
+
+    process_batch(db_session, storage, FakeLLMClient(), batch.id)
+
+    apps = db_session.execute(select(Application)).scalars().all()
+    assert len(apps) == 1
+    assert apps[0].status == "passed"
+    assert apps[0].score == 10.0
+    assert apps[0].candidate_name == "张三"
+
+    pool = db_session.execute(select(TalentPool)).scalars().all()
+    assert len(pool) == 1
+    assert pool[0].name == "张三"
+    assert pool[0].score == 10.0
+    assert pool[0].tier == "特别优秀"
+
+
+def test_process_batch_low_score_marks_failed_and_skips_pool(db_session):
+    storage = FakeStorage()
+    job_id = _demo_job_id(db_session)
+    batch = _make_batch(db_session, job_id, storage, make_zip({"a.pdf": make_pdf("Hi")}))
+
+    process_batch(db_session, storage, FakeLLMClient(match_weights={}), batch.id)
+
+    apps = db_session.execute(select(Application)).scalars().all()
+    assert len(apps) == 1
+    assert apps[0].status == "failed"
+    assert apps[0].score == 0.0
+
+    assert db_session.execute(select(TalentPool)).scalars().all() == []

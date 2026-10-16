@@ -33,6 +33,18 @@ const router = createRouter({
       component: () => import('../views/BatchesView.vue'),
       meta: { requiresAuth: true },
     },
+    {
+      path: '/applications',
+      name: 'applications',
+      component: () => import('../views/ApplicationsView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/talent-pool',
+      name: 'talent-pool',
+      component: () => import('../views/TalentPoolView.vue'),
+      meta: { requiresAuth: true },
+    },
   ],
 })
 

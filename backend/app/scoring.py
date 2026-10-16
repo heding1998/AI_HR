@@ -10,6 +10,11 @@ TOTAL_SCORE = 10.0
 MIN_WEIGHT = 2
 MAX_WEIGHT = 10
 
+PASS_THRESHOLD = 7.0  # 初筛通过 / 进入人才库的分数阈值
+TIER_NORMAL = "一般优秀"  # 7 <= score < 8
+TIER_GOOD = "中等优秀"  # 8 <= score < 9
+TIER_EXCELLENT = "特别优秀"  # score >= 9
+
 
 def validate_a_table(rows: list[ScoringStandardAIn]) -> str | None:
     """校验 A 表，合法返回 None，否则返回错误消息。
@@ -129,4 +134,18 @@ def build_scoring_prompt(
 
 请对每个小类，选择最匹配简历内容的一项指标，返回其权重（0~10 的数字）。\
 只输出一个 JSON 对象，键为小类名，值为匹配权重；无法判断时权重为 0。"""
+
+
+def is_pass(score: float) -> bool:
+    """分数是否达到初筛通过阈值（≥7）。"""
+    return score >= PASS_THRESHOLD
+
+
+def tier_for_score(score: float) -> str:
+    """把 ≥7 的分数映射为人才库分级。"""
+    if score >= 9.0:
+        return TIER_EXCELLENT
+    if score >= 8.0:
+        return TIER_GOOD
+    return TIER_NORMAL
 

@@ -1,6 +1,12 @@
 from app.llm import DeepSeekClient, LLMNotConfiguredError
 from app.schemas import ScoringStandardAIn, ScoringStandardBIn
-from app.scoring import build_scoring_prompt, compute_resume_score, normalize_match_weights
+from app.scoring import (
+    build_scoring_prompt,
+    compute_resume_score,
+    is_pass,
+    normalize_match_weights,
+    tier_for_score,
+)
 
 
 def _a_row(category: str, subcategory: str, subcategory_score: float) -> ScoringStandardAIn:
@@ -91,3 +97,18 @@ def test_deepseek_score_unconfigured_raises():
         assert "DEEPSEEK_API_KEY" in str(exc)
     else:
         raise AssertionError("应抛出 LLMNotConfiguredError")
+
+
+def test_is_pass_threshold():
+    assert is_pass(7.0) is True
+    assert is_pass(6.9) is False
+    assert is_pass(10.0) is True
+
+
+def test_tier_for_score_boundaries():
+    assert tier_for_score(7.0) == "一般优秀"
+    assert tier_for_score(7.9) == "一般优秀"
+    assert tier_for_score(8.0) == "中等优秀"
+    assert tier_for_score(8.9) == "中等优秀"
+    assert tier_for_score(9.0) == "特别优秀"
+    assert tier_for_score(9.5) == "特别优秀"

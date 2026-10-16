@@ -11,6 +11,7 @@ from .extraction import normalize_resume_fields
 from .llm import LLMClient
 from .models import Resume, ScoringStandardA, ScoringStandardB, UploadBatch
 from .parsing import extract_pdf_text
+from .recruitment import record_application_and_pool
 from .schemas import ScoringStandardAIn, ScoringStandardBIn
 from .scoring import compute_resume_score
 from .storage import ObjectStorage
@@ -94,6 +95,18 @@ def score_resume_record(
         resume.score_error = _truncate(str(exc) or "评分失败")
 
 
+def _generate_applications_and_pool(session: Session, batch_id: int) -> None:
+    """为批次中已评分的简历生成应聘记录与人才库条目（幂等）。"""
+    scored_resumes = session.execute(
+        select(Resume)
+        .where(Resume.batch_id == batch_id, Resume.status == RESUME_STATUS_EXTRACTED)
+        .order_by(Resume.id)
+    ).scalars().all()
+    for resume in scored_resumes:
+        record_application_and_pool(session, resume)
+        session.commit()
+
+
 def process_batch(
     session: Session, storage: ObjectStorage, llm: LLMClient, batch_id: int
 ) -> None:
@@ -106,6 +119,10 @@ def process_batch(
         select(Resume.id).where(Resume.batch_id == batch_id).limit(1)
     ).scalar_one_or_none()
     if already_processed is not None:
+        # 简历已建（任务重投递/崩溃恢复）：仅补跑派生数据，幂等。
+        _generate_applications_and_pool(session, batch.id)
+        batch.status = STATUS_DONE
+        session.commit()
         return
 
     batch.status = STATUS_PROCESSING
@@ -221,6 +238,9 @@ def process_batch(
         for resume in scored_resumes:
             score_resume_record(llm, resume, a_rows, b_rows)
             session.commit()
+
+        # 应聘记录与人才库：按分数阈值生成应聘记录，达标者写入高分人才库。
+        _generate_applications_and_pool(session, batch.id)
     except Exception as exc:
         session.rollback()
         batch.status = STATUS_FAILED
