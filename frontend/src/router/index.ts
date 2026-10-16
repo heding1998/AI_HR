@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { getToken } from '../api/auth'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -7,8 +8,24 @@ const router = createRouter({
       path: '/',
       name: 'home',
       component: () => import('../views/HomeView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/login',
+      name: 'login',
+      component: () => import('../views/LoginView.vue'),
     },
   ],
+})
+
+router.beforeEach((to) => {
+  const authed = getToken() !== null
+  if (to.meta.requiresAuth && !authed) {
+    return { name: 'login' }
+  }
+  if (to.name === 'login' && authed) {
+    return { name: 'home' }
+  }
 })
 
 export default router

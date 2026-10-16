@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     deepseek_model: str = "deepseek-chat"
 
     jwt_secret: str = "change-me"
+    jwt_expire_minutes: int = 60 * 24
+
+    admin_username: str = "admin"
+    admin_password: str = "admin123"
 
 
 @lru_cache
