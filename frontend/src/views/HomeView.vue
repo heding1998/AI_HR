@@ -17,6 +17,7 @@ function onLogout() {
       <div class="actions">
         <el-button @click="router.push({ name: 'jobs' })">岗位管理</el-button>
         <el-button @click="router.push({ name: 'scoring-standard' })">评分标准配置</el-button>
+        <el-button @click="router.push({ name: 'batches' })">简历上传</el-button>
         <el-button @click="onLogout">退出登录</el-button>
       </div>
     </header>

@@ -7,7 +7,7 @@ from sqlalchemy.orm import sessionmaker
 import app.models  # noqa: F401  注册模型到 Base.metadata
 from app.config import settings
 from app.db import Base
-from app.deps import get_db
+from app.deps import get_db, get_storage
 from app.main import app
 from app.seed import ensure_default_admin, ensure_seed_jobs, ensure_seed_scoring_standard
 
@@ -61,11 +61,22 @@ def db_session(engine):
 
 
 @pytest.fixture()
-def client(db_session):
+def storage():
+    from tests.fakes import FakeStorage
+
+    return FakeStorage()
+
+
+@pytest.fixture()
+def client(db_session, storage):
     def override_get_db():
         yield db_session
 
+    def override_get_storage():
+        return storage
+
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_storage] = override_get_storage
     try:
         with TestClient(app) as c:
             yield c

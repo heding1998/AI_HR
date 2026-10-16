@@ -27,6 +27,12 @@ const router = createRouter({
       component: () => import('../views/ScoringStandardView.vue'),
       meta: { requiresAuth: true },
     },
+    {
+      path: '/batches',
+      name: 'batches',
+      component: () => import('../views/BatchesView.vue'),
+      meta: { requiresAuth: true },
+    },
   ],
 })
 

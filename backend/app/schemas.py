@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel, ConfigDict
 
 
@@ -70,3 +72,31 @@ class ScoringStandardBOut(ScoringStandardBIn):
 class ScoringStandardOut(BaseModel):
     a: list[ScoringStandardAOut]
     b: list[ScoringStandardBOut]
+
+
+class BatchOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    job_id: int
+    status: str
+    total_count: int
+    processed_count: int
+    error: str | None
+    created_at: datetime
+
+
+class ResumeOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    batch_id: int
+    job_id: int
+    original_filename: str
+    status: str
+    error: str | None
+    created_at: datetime
+
+
+class BatchDetailOut(BatchOut):
+    resumes: list[ResumeOut]
