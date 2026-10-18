@@ -2,7 +2,6 @@
 import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { clearToken } from '../api/auth'
 import { createJob, listJobs, updateJob, type Job } from '../api/jobs'
 
 const router = useRouter()
@@ -69,24 +68,11 @@ async function onToggle(job: Job) {
   }
 }
 
-function onLogout() {
-  clearToken()
-  router.push({ name: 'login' })
-}
-
 onMounted(loadJobs)
 </script>
 
 <template>
   <div class="jobs">
-    <header class="bar">
-      <h1>招聘岗位管理</h1>
-      <div class="actions">
-        <el-button @click="router.push({ name: 'home' })">首页</el-button>
-        <el-button @click="onLogout">退出登录</el-button>
-      </div>
-    </header>
-
     <el-card>
       <div class="toolbar">
         <el-button type="primary" @click="openCreate">新建岗位</el-button>
@@ -149,22 +135,6 @@ onMounted(loadJobs)
 </template>
 
 <style scoped>
-.jobs {
-  padding: 24px;
-}
-
-.bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
-}
-
-.actions {
-  display: flex;
-  gap: 8px;
-}
-
 .toolbar {
   margin-bottom: 16px;
 }

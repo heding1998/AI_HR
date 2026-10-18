@@ -1,11 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { clearToken } from '../api/auth'
 import { listTalentPool, type TalentPoolEntry } from '../api/talentPool'
-
-const router = useRouter()
 
 const pool = ref<TalentPoolEntry[]>([])
 const selectedTier = ref<string>('') // '' = 全部分级
@@ -13,10 +9,10 @@ const loading = ref(false)
 
 const TIERS = ['一般优秀', '中等优秀', '特别优秀']
 
-const tierMap: Record<string, { type: string }> = {
-  一般优秀: { type: 'info' },
-  中等优秀: { type: 'warning' },
-  特别优秀: { type: 'success' },
+function tierClass(tier: string): string {
+  if (tier === '特别优秀') return 'tier-high'
+  if (tier === '中等优秀') return 'tier-mid'
+  return 'tier-low'
 }
 
 async function loadPool() {
@@ -30,24 +26,11 @@ async function loadPool() {
   }
 }
 
-function onLogout() {
-  clearToken()
-  router.push({ name: 'login' })
-}
-
 onMounted(loadPool)
 </script>
 
 <template>
   <div class="pool">
-    <header class="bar">
-      <h1>高分人才库</h1>
-      <div class="actions">
-        <el-button @click="router.push({ name: 'home' })">首页</el-button>
-        <el-button @click="onLogout">退出登录</el-button>
-      </div>
-    </header>
-
     <el-card>
       <div class="toolbar">
         <span class="label">分级：</span>
@@ -61,11 +44,13 @@ onMounted(loadPool)
         <el-table-column prop="name" label="姓名" width="140" />
         <el-table-column prop="contact" label="联系方式" width="180" />
         <el-table-column label="分数" width="120" sortable>
-          <template #default="{ row }">{{ row.score }}</template>
+          <template #default="{ row }">
+            <span class="score-num">{{ row.score }}</span>
+          </template>
         </el-table-column>
         <el-table-column label="分级" width="140">
           <template #default="{ row }">
-            <el-tag :type="tierMap[row.tier]?.type ?? 'info'">{{ row.tier }}</el-tag>
+            <span class="tier-badge" :class="tierClass(row.tier)">{{ row.tier }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="created_at" label="入库时间" width="180" />
@@ -75,27 +60,36 @@ onMounted(loadPool)
 </template>
 
 <style scoped>
-.pool {
-  padding: 24px;
-}
-
-.bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
-}
-
-.actions {
-  display: flex;
-  gap: 8px;
-}
-
 .toolbar {
   margin-bottom: 16px;
 }
 
 .label {
   margin-right: 8px;
+  color: var(--ink-3);
+}
+
+.tier-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 20px;
+}
+
+.tier-low {
+  color: var(--ink-3);
+  background: var(--el-border-color-extra-light);
+}
+
+.tier-mid {
+  color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+}
+
+.tier-high {
+  color: var(--amber);
+  background: rgba(183, 121, 31, 0.12);
+  font-weight: 600;
 }
 </style>

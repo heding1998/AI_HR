@@ -1,12 +1,8 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { clearToken } from '../api/auth'
 import { listJobs, type Job } from '../api/jobs'
 import { listApplications, type Application } from '../api/applications'
-
-const router = useRouter()
 
 const jobs = ref<Job[]>([])
 const applications = ref<Application[]>([])
@@ -35,11 +31,6 @@ async function loadApplications() {
   }
 }
 
-function onLogout() {
-  clearToken()
-  router.push({ name: 'login' })
-}
-
 onMounted(async () => {
   try {
     jobs.value = await listJobs()
@@ -52,14 +43,6 @@ onMounted(async () => {
 
 <template>
   <div class="applications">
-    <header class="bar">
-      <h1>评分结果</h1>
-      <div class="actions">
-        <el-button @click="router.push({ name: 'home' })">首页</el-button>
-        <el-button @click="onLogout">退出登录</el-button>
-      </div>
-    </header>
-
     <el-card>
       <div class="toolbar">
         <span class="label">招聘岗位：</span>
@@ -81,7 +64,9 @@ onMounted(async () => {
           <template #default="{ row }">{{ jobName(row.job_id) }}</template>
         </el-table-column>
         <el-table-column label="分数" width="100" sortable>
-          <template #default="{ row }">{{ row.score }}</template>
+          <template #default="{ row }">
+            <span class="score-num">{{ row.score }}</span>
+          </template>
         </el-table-column>
         <el-table-column label="初筛状态" width="120">
           <template #default="{ row }">
@@ -97,27 +82,12 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.applications {
-  padding: 24px;
-}
-
-.bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
-}
-
-.actions {
-  display: flex;
-  gap: 8px;
-}
-
 .toolbar {
   margin-bottom: 16px;
 }
 
 .label {
   margin-right: 8px;
+  color: var(--ink-3);
 }
 </style>

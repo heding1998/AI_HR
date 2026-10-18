@@ -1,0 +1,117 @@
+/* AI HR — 评分卡 Scorecard 全局主题
+ * 覆盖 Element Plus 默认主题，统一色板 / 字体 / 圆角 / 间距。
+ */
+
+:root {
+  /* 品牌色板 */
+  --ink: #1b2233;
+  --ink-2: #3d4657;
+  --ink-3: #6b7280;
+  --paper: #f4f6f8;
+  --surface: #ffffff;
+  --line: #e3e7ed;
+  --teal: #0e7c7b;
+  --amber: #b7791f;
+
+  /* 字体 */
+  --font-sans: "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", "Menlo", "Consolas", "Liberation Mono", monospace;
+
+  /* Element Plus 主色映射到 teal */
+  --el-color-primary: #0e7c7b;
+  --el-color-primary-light-3: #56a3a2;
+  --el-color-primary-light-5: #86bdbd;
+  --el-color-primary-light-7: #b7d8d7;
+  --el-color-primary-light-8: #cfe5e4;
+  --el-color-primary-light-9: #e7f1f0;
+  --el-color-primary-dark-2: #0b6362;
+
+  /* 语义色 */
+  --el-color-success: #1e7a5a;
+  --el-color-warning: #b7791f;
+  --el-color-danger: #c0392b;
+  --el-color-error: #c0392b;
+  --el-color-info: #6b7280;
+
+  /* 文本 */
+  --el-text-color-primary: #1b2233;
+  --el-text-color-regular: #3d4657;
+  --el-text-color-secondary: #6b7280;
+  --el-text-color-placeholder: #9aa3b2;
+
+  /* 边框与背景 */
+  --el-border-color: #e3e7ed;
+  --el-border-color-light: #e3e7ed;
+  --el-border-color-lighter: #eceff3;
+  --el-border-color-extra-light: #f1f3f6;
+  --el-fill-color-blank: #ffffff;
+  --el-bg-color-page: #f4f6f8;
+  --el-bg-color: #ffffff;
+
+  /* 圆角与字号 */
+  --el-border-radius-base: 6px;
+  --el-border-radius-small: 4px;
+  --el-font-size-base: 14px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 数字签名：评分/统计数字统一使用等宽字体 + 表格式数字 */
+.num,
+.score-num,
+.el-table .cell .score-num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.score-num {
+  color: var(--amber);
+  font-weight: 600;
+}
+
+.score-num.score-pass {
+  color: var(--teal);
+}
+
+.score-num.score-high {
+  color: var(--amber);
+  font-size: 1.25em;
+}
+
+/* 标题与正文基础 */
+h1,
+h2,
+h3,
+h4 {
+  margin: 0;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+a {
+  color: var(--teal);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--el-color-primary-dark-2);
+}

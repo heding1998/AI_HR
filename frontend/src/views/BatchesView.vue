@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
 import { ElMessage, type UploadFile } from 'element-plus'
-import { clearToken } from '../api/auth'
 import { listJobs, type Job } from '../api/jobs'
 import {
   getBatch,
@@ -14,8 +12,6 @@ import {
   type Resume,
   type ResumeDetail,
 } from '../api/batches'
-
-const router = useRouter()
 
 const jobs = ref<Job[]>([])
 const selectedJobId = ref<number | null>(null)
@@ -181,11 +177,6 @@ async function onRescore(resume: ResumeDetail) {
   }
 }
 
-function onLogout() {
-  clearToken()
-  router.push({ name: 'login' })
-}
-
 onMounted(async () => {
   try {
     await loadJobs()
@@ -203,14 +194,6 @@ onUnmounted(() => {
 
 <template>
   <div class="batches">
-    <header class="bar">
-      <h1>简历上传</h1>
-      <div class="actions">
-        <el-button @click="router.push({ name: 'home' })">首页</el-button>
-        <el-button @click="onLogout">退出登录</el-button>
-      </div>
-    </header>
-
     <el-card>
       <div class="upload-row">
         <el-select v-model="selectedJobId" placeholder="选择岗位" style="width: 260px">
@@ -273,7 +256,9 @@ onUnmounted(() => {
         </el-table-column>
         <el-table-column label="分数" width="90">
           <template #default="{ row }">
-            <span v-if="row.score !== null && row.score !== undefined">{{ row.score }}</span>
+            <span v-if="row.score !== null && row.score !== undefined" class="score-num">
+              {{ row.score }}
+            </span>
             <el-tag v-else type="warning" size="small">未评分</el-tag>
           </template>
         </el-table-column>
@@ -331,22 +316,6 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.batches {
-  padding: 24px;
-}
-
-.bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
-}
-
-.actions {
-  display: flex;
-  gap: 8px;
-}
-
 .upload-row {
   display: flex;
   align-items: center;
@@ -355,7 +324,7 @@ onUnmounted(() => {
 }
 
 .file-name {
-  color: #606266;
+  color: var(--ink-3);
   font-size: 14px;
 }
 
@@ -371,18 +340,20 @@ onUnmounted(() => {
 }
 
 .score-label {
-  color: #606266;
+  color: var(--ink-3);
   font-size: 14px;
 }
 
 .score-value {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 20px;
   font-weight: 600;
-  color: #409eff;
+  color: var(--amber);
 }
 
 .score-error {
-  color: #f56c6c;
+  color: var(--el-color-danger);
   font-size: 13px;
 }
 
@@ -390,7 +361,8 @@ onUnmounted(() => {
   max-height: 300px;
   overflow: auto;
   padding: 12px;
-  background: #f5f7fa;
+  background: var(--paper);
+  border: 1px solid var(--line);
   border-radius: 4px;
   white-space: pre-wrap;
   font-size: 13px;
